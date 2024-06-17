@@ -36,25 +36,36 @@ begin
     TraverseWorldspaceCells;
 end;
 
-function ZeroPad(const S : string): string;
+function ZeroPad(const S: string): string;
+{
+  Given a numeric string, adds zeros until the string is  4 characters long. The negative symbol is included in character count.
+  Examples:
+    1 --> 0001
+    10 --> 0010
+    -1 --> -001
+    -33 --> -033
+}
 var
   i, numlen: integer;
   str1, str2: string;
 begin
   str1 := S;
+  // Strip the negative sign.
   str2 := StringReplace(S, '-', '', rfReplaceAll);
-  if str1 = str2 then
-    numlen := 4
-  else
-    numlen := 3;
+
+  // This allows us to track the negative sign. Length is 4 if it doesn't have negative sign. Length is 3 with negative sign, and then added onto the end.
+  if str1 = str2 then numlen := 4 else numlen := 3;
+
+  // Add zeros
   i := Length(str2);
-  while i < numlen do
-  begin
+  while i < numlen do begin
     str2 := '0' + str2;
     inc(i);
   end;
-  if numlen = 3 then
-    str2 := '-' + str2;
+
+  //Add back the negative sign if it was used.
+  if numlen = 3 then str2 := '-' + str2;
+
   Result := str2;
 end;
 
