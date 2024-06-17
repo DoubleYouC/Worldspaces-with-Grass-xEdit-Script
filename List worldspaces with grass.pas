@@ -193,14 +193,12 @@ begin
   wrldsusingparentlanddata.Free;
 end;
 
-
-
-function BoolToStr(Value : Boolean) : String;
+function BoolToStr(b: boolean): string;
+{
+    Given a boolean, return a string.
+}
 begin
-  if Value then
-    result := 'true'
-  else
-    result := 'false';
+    if b then Result := 'true' else Result := 'false';
 end;
 
 function GetLandscapeForCell(cell: IInterface): IInterface;
