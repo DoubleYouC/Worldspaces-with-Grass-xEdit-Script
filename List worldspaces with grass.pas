@@ -3,20 +3,39 @@
 }
 unit UserScript;
 
-
 var
   filesneeded, consolecodes, worldsneeded: TStringList;
   fname, cname, wname, wrlds: string;
-  generateFiles, skipTraverse: Boolean;
+  generateFiles: Boolean;
 
 function Initialize: Integer;
+{
+    This function is called at the beginning.
+}
+var
+  skipTraverse: Boolean;
 begin
   generateFiles := 1;
   skipTraverse := 0;
-  fname := ProgramPath + 'Edit Scripts\grasscache.txt';
-  cname := ProgramPath + 'Edit Scripts\grasscacheconsole.txt';
-  wname := ProgramPath + 'Edit Scripts\grasscacheworlds.txt';
+  fname := ScriptsPath() + 'grasscache.txt';
+  cname := ScriptsPath() + 'grasscacheconsole.txt';
+  wname := ScriptsPath() + 'grasscacheworlds.txt';
 
+  CreateObjects;
+
+  if not OptionForm then begin
+    AddMessage('Script was cancelled.');
+    Result := 0;
+    Exit;
+  end;
+
+  if not skipTraverse then TraverseWorldspaceCells;
+
+  Result := 0;
+end;
+
+Procedure CreateObjects;
+begin
   filesneeded := TStringList.Create;
   filesneeded.Sorted := true;
   filesneeded.Duplicates := dupIgnore;
@@ -29,11 +48,35 @@ begin
   worldsneeded.Sorted := true;
   worldsneeded.Duplicates := dupIgnore;
   worldsneeded.Delimiter := ';';
+end;
 
-  if generateFiles then
-    OptionForm;
-  if not skipTraverse then
-    TraverseWorldspaceCells;
+function Finalize: integer;
+var
+  wrldts: TStringList;
+begin
+  wrlds := worldsneeded.DelimitedText;
+  worldsneeded.Free;
+  wrldts := TStringList.Create;
+  wrldts.add(wrlds);
+
+  AddMessage(wrldts.Text);
+  MessageForm(wrldts.Text);
+
+  if generateFiles then begin
+    AddMessage('Saving grasscacheworlds.txt to ' + wname);
+    wrldts.SaveToFile(wname);
+
+    AddMessage('Saving grasscache.txt to ' + fname);
+    filesneeded.SaveToFile(fname);
+    filesneeded.Free;
+
+    AddMessage('Saving grasscacheconsole.txt to ' + cname);
+    consolecodes.SaveToFile(cname);
+    consolecodes.Free;
+  end;
+  wrldts.Free;
+
+  Result := 0;
 end;
 
 function ZeroPad(const S: string): string;
@@ -272,7 +315,7 @@ end;
 procedure MessageForm(wrldwithgrass: string);
 var
   frm: TForm;
-  lbl1, lblMessage, lblMessage2: TLabel;
+  lbl1, lblMessage: TLabel;
   edWrlds: TEdit;
   btnOK: TButton;
   done: Boolean;
@@ -305,88 +348,108 @@ begin
     lblMessage.Left := 128;
     lblMessage.Width := 325;
     lblMessage.Top := edWrlds.Top + 24;
-    lblMessage.Text := 'Copy and paste this output into the "OnlyPregenerateWorldSpaces"';
-
-    lblMessage2 := TLabel.Create(frm);
-    lblMessage2.Parent := frm;
-    lblMessage2.Left := 128;
-    lblMessage2.Width := 325;
-    lblMessage2.Top := lblMessage.Top + 16;
-    lblMessage2.Text := 'setting within the No Grass In Objects GrassControl.config.txt.';
+    lblMessage.Text := 'Copy and paste this output into the "OnlyPregenerateWorldSpaces"'+ #13#10 + 'setting within the No Grass In Objects GrassControl.config.txt.';
 
     btnOk := TButton.Create(frm);
     btnOk.Parent := frm;
     btnOk.Caption := 'OK';
     btnOk.ModalResult := mrOk;
     btnOk.Left := 128;
-    btnOk.Top := lblMessage2.Top + 24;
+    btnOk.Top := lblMessage.Top + 40;
 
     frm.ActiveControl := edWrlds;
 
-    if frm.ShowModal = mrOk then begin
-      done := 1;
-        end else
-      done := 0;
+    if frm.ShowModal = mrOk then done := 1 else done := 0;
   finally
     frm.Free;
   end;
 end;
 
-procedure OptionForm;
+function CreateLabel(aParent: TControl; x, y: Integer; aCaption: string): TLabel;
+{
+  Create a label.
+}
+begin
+  Result := TLabel.Create(aParent);
+  Result.Parent := aParent;
+  Result.Left := x;
+  Result.Top := y;
+  Result.Caption := aCaption;
+end;
+
+function OptionForm: Boolean;
 var
   frm: TForm;
   btnOk, btnCancel: TButton;
   lbl1, lbl2, lbl3: TLabel;
-  edFname, edCname, edWname: TLabeledEdit;
+  edFname, edCname, edWname: TEdit;
+  gbOptions: TGroupBox;
+  pnl: TPanel;
 begin
   frm := TForm.Create(nil);
   try
     frm.Caption := 'List Cells/Console Codes/Worlds for which grass is in the LAND record';
     frm.Width := 600;
-    frm.Height := 150;
+    frm.Height := 250;
     frm.Position := poScreenCenter;
     frm.BorderStyle := bsDialog;
 
-    edFname := TLabeledEdit.Create(frm);
-    edFname.Parent := frm;
-    edFname.LabelPosition := lpLeft;
-    edFname.EditLabel.Caption := 'Path to output list:';
-    edFname.Left := 150;
-    edFname.Top := 8;
+    gbOptions := TGroupBox.Create(frm);
+    gbOptions.Parent := frm;
+    gbOptions.Left := 10;
+    gbOptions.Top := 16;
+    gbOptions.Width := frm.Width - 30;
+    gbOptions.Caption := 'Output Paths';
+    gbOptions.Height := 130;
+
+    edFname := TLabeledEdit.Create(gbOptions);
+    edFname.Parent := gbOptions;
+    edFname.Name := 'edFname';
+    edFname.Left := 104;
+    edFname.Top := 30;
     edFname.Width := 400;
     edFname.Text := fname;
+    CreateLabel(gbOptions, 16, edFname.Top + 4, 'List:');
 
-    edCname := TLabeledEdit.Create(frm);
-    edCname.Parent := frm;
-    edCname.LabelPosition := lpLeft;
-    edCname.EditLabel.Caption := 'Path to output console codes:';
-    edCname.Left := 150;
-    edCname.Top := edFname.Top + 24;
+    edCname := TLabeledEdit.Create(gbOptions);
+    edCname.Parent := gbOptions;
+    edCname.Name := 'edCname';
+    edCname.Left := edFname.Left;
+    edCname.Top := edFname.Top + 30;
     edCname.Width := edFname.Width;
     edCname.Text := cname;
+    CreateLabel(gbOptions, 16, edCname.Top + 4, 'Console codes:');
 
-    edWname := TLabeledEdit.Create(frm);
-    edWname.Parent := frm;
-    edWname.LabelPosition := lpLeft;
-    edWname.EditLabel.Caption := 'Path to output worlds:';
-    edWname.Left := 150;
-    edWname.Top := edCname.Top + 24;
+    edWname := TLabeledEdit.Create(gbOptions);
+    edWname.Parent := gbOptions;
+    edWname.Name := 'edWname';
+    edWname.Left := edCname.Left;
+    edWname.Top := edCname.Top + 30;
     edWname.Width := edCname.Width;
     edWname.Text := wname;
+    CreateLabel(gbOptions, 16, edWname.Top + 4, 'Worlds:');
 
     btnOk := TButton.Create(frm);
     btnOk.Parent := frm;
     btnOk.Caption := 'OK';
     btnOk.ModalResult := mrOk;
-    btnOk.Left := 150;
-    btnOk.Top := edWname.Top + 32;
+    btnOk.Top := gbOptions.Top + gbOptions.Height + 32;
 
     btnCancel := TButton.Create(frm);
     btnCancel.Parent := frm;
     btnCancel.Caption := 'Cancel';
     btnCancel.ModalResult := mrCancel;
-    btnCancel.Left := btnOk.Left + btnOk.Width + 16;
     btnCancel.Top := btnOk.Top;
+
+    btnOk.Left := gbOptions.Width - btnOk.Width - btnCancel.Width - 16;
+    btnCancel.Left := btnOk.Left + btnOk.Width + 8;
+
+    pnl := TPanel.Create(frm);
+    pnl.Parent := frm;
+    pnl.Left := 8;
+    pnl.Top := btnOk.Top - 12;
+    pnl.Width := frm.Width - 24;
+    pnl.Height := 2;
 
     frm.ActiveControl := btnOk;
 
@@ -397,39 +460,10 @@ begin
         cname := Trim(edCname.Text);
       if (Trim(edWname.Text) <> '') then
         wname := Trim(edWname.Text);
-        end;
+    end;
   finally
     frm.Free;
   end;
-end;
-
-function Finalize: integer;
-var
-  wrldts: TStringList;
-begin
-  wrlds := worldsneeded.DelimitedText;
-  worldsneeded.Free;
-  wrldts := TStringList.Create;
-  wrldts.add(wrlds);
-
-  AddMessage(wrldts.Text);
-  MessageForm(wrldts.Text);
-
-  if generateFiles then begin
-    AddMessage('Saving grasscacheworlds.txt to ' + wname);
-    wrldts.SaveToFile(wname);
-
-    AddMessage('Saving grasscache.txt to ' + fname);
-    filesneeded.SaveToFile(fname);
-    filesneeded.Free;
-
-    AddMessage('Saving grasscacheconsole.txt to ' + cname);
-    consolecodes.SaveToFile(cname);
-    consolecodes.Free;
-  end;
-  wrldts.Free;
-
-  Result := 1;
 end;
 
 end.
