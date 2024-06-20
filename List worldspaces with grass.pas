@@ -323,39 +323,38 @@ begin
   frm := TForm.Create(nil);
   try
     frm.Caption := 'Worldspaces with grass';
-    frm.Width := 475;
-    frm.Height := 128;
+    frm.Width := 550;
+    frm.Height := 180;
     frm.Position := poScreenCenter;
     frm.BorderStyle := bsDialog;
 
     lbl1 := TLabel.Create(frm);
     lbl1.Parent := frm;
     lbl1.Left := 8;
-    lbl1.Width := 120;
     lbl1.Top := 8;
     lbl1.Text := 'Worldspaces with grass:';
 
     edWrlds := TEdit.Create(frm);
     edWrlds.Parent := frm;
-    edWrlds.Left := 128;
+    edWrlds.Left := lbl1.Left + lbl1.Width + 16;
     edWrlds.Top := 6;
-    edWrlds.Width := 325;
+    edWrlds.Width := frm.Width - edWrlds.Left - 16;
     edWrlds.Height := 20;
     edWrlds.Text := wrldwithgrass;
 
     lblMessage := TLabel.Create(frm);
     lblMessage.Parent := frm;
-    lblMessage.Left := 128;
+    lblMessage.Left := edWrlds.Left;
     lblMessage.Width := 325;
-    lblMessage.Top := edWrlds.Top + 24;
+    lblMessage.Top := edWrlds.Top + 36;
     lblMessage.Text := 'Copy and paste this output into the "OnlyPregenerateWorldSpaces"'+ #13#10 + 'setting within the No Grass In Objects GrassControl.config.txt.';
 
     btnOk := TButton.Create(frm);
     btnOk.Parent := frm;
     btnOk.Caption := 'OK';
     btnOk.ModalResult := mrOk;
-    btnOk.Left := 128;
-    btnOk.Top := lblMessage.Top + 40;
+    btnOk.Left := (frm.Width - btnOk.Width)/2;
+    btnOk.Top := lblMessage.Top + 60;
 
     frm.ActiveControl := edWrlds;
 
@@ -453,14 +452,19 @@ begin
 
     frm.ActiveControl := btnOk;
 
-    if frm.ShowModal = mrOk then begin
-      if (Trim(edFname.Text) <> '') then
-        fname := Trim(edFname.Text);
-      if (Trim(edCname.Text) <> '') then
-        cname := Trim(edCname.Text);
-      if (Trim(edWname.Text) <> '') then
-        wname := Trim(edWname.Text);
-    end;
+    if frm.ShowModal <> mrOk then begin
+      Result := False;
+      Exit;
+    end
+    else Result := True;
+
+
+    if (Trim(edFname.Text) <> '') then
+      fname := Trim(edFname.Text);
+    if (Trim(edCname.Text) <> '') then
+      cname := Trim(edCname.Text);
+    if (Trim(edWname.Text) <> '') then
+      wname := Trim(edWname.Text);
   finally
     frm.Free;
   end;
