@@ -208,6 +208,7 @@ var
 begin
   for i := 0 to Pred(tlWrld.Count) do begin
     wrld := ObjectToElement(tlWrld[i]);
+    if GetElementEditValues(wrld, 'DATA - Flags\No Grass') = '1' then continue;
     if GetElementEditValues(wrld, 'Parent\PNAM\Flags\Use Land Data') <> '1' then continue;
     parentwrld := LinksTo(ElementByPath(wrld, 'Parent\WNAM'));
     if worldsneeded.IndexOf(EditorID(parentwrld)) > -1 then worldsneeded.Add(EditorID(wrld));
