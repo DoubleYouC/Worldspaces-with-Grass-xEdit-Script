@@ -9,17 +9,16 @@ var
   bGenerateFiles: Boolean;
   chkGenerateFiles: TCheckBox;
   edFname, edCname, edWname: TEdit;
+  tlLand, tlWrld: TList;
 
 function Initialize: Integer;
 {
     This function is called at the beginning.
 }
 var
-  skipTraverse: Boolean;
   wrldts: TStringList;
 begin
   bGenerateFiles := 0;
-  skipTraverse := 0;
   fname := ScriptsPath() + 'grasscache.txt';
   cname := ScriptsPath() + 'grasscacheconsole.txt';
   wname := ScriptsPath() + 'grasscacheworlds.txt';
@@ -32,7 +31,10 @@ begin
     Exit;
   end;
 
-  if not skipTraverse then TraverseWorldspaceCells;
+  Grass;
+  Land;
+  ListStringsInStringList(filesneeded);
+  Worlds;
 
   wrlds := worldsneeded.DelimitedText;
   worldsneeded.Free;
@@ -73,10 +75,15 @@ begin
   worldsneeded.Sorted := true;
   worldsneeded.Duplicates := dupIgnore;
   worldsneeded.Delimiter := ';';
+
+  tlLand := TList.Create;
+  tlWrld := TList.Create;
 end;
 
 function Finalize: integer;
 begin
+  tlLand.Free;
+  tlWrld.Free;
   Result := 0;
 end;
 
@@ -113,139 +120,98 @@ begin
   Result := str2;
 end;
 
-function TraverseWorldspaceCells: integer;
+procedure Grass;
 var
-  gltexes, parentworlds, wrldsusingparentlanddata: TStringList;
-  doesithavegrass, modidx, wrldidx, blockidx, subblockidx, cellidx, cellchildidx, numberoflayers, layeridx, theumpteenthidx, lengthofthename, filesneededidx, parentworldsidx: integer;
-  f, wrlds, wrld, wrldgrup, block, subblock, cell, cellchild, temprecord, layers, layerrecord, layertexture, ilosttrack, parentwrld: IInterface;
-  wrldname, x, y, xxxx, yyyy, thename, newname, filenameneeded, cellmodcheck, therewasgrassinthiscellforthismod, parentwrldname: string;
+  i, j, idx: integer;
+  recordId: string;
+  f, g, r: IInterface;
+  slLtex, slLand, slWrld: TStringList;
+  tlLtex: TList;
 begin
-  gltexes := TStringList.Create;
-  parentworlds := TStringList.Create;
-  wrldsusingparentlanddata := TStringList.Create;
-  LandscapeTexturesWithGrass(gltexes);
+  tlLtex := TList.Create;
+  slLtex := TStringList.Create;
+  slWrld := TStringList.Create;
+  slLand := TStringList.Create;
+  for i := 0 to Pred(FileCount) do begin
+    f := FileByIndex(i);
 
+    //STAT
+    g := GroupBySignature(f, 'LTEX');
+    for j := 0 to Pred(ElementCount(g)) do begin
+      r := WinningOverride(ElementByIndex(g, j));
+      recordId := GetFileName(r) + #9 + ShortName(r);
+      idx := slLtex.IndexOf(recordId);
+      if idx > -1 then continue
+      slLtex.Add(recordId);
+      if not ElementExists(r, 'GNAM') then continue;
+      tlLtex.Add(r);
+      AddMessage(ShortName(r));
+    end;
 
-  // traverse mods
-  for modidx := 0 to FileCount - 1 do begin
-    f := FileByIndex(modidx);
-    wrlds := GroupBySignature(f, 'WRLD');
-    AddMessage('Processing ' + IntToStr(modidx + 1) + ' of ' + IntToStr(FileCount) + '... please wait.');
-    if not Assigned(wrlds) then Continue;
-
-    // traverse Worldspaces
-    for wrldidx := 0 to ElementCount(wrlds) - 1 do begin
-      wrld := ElementByIndex(wrlds, wrldidx);
-      wrldname: = EditorID(wrld);
-
-      if (GetElementNativeValues(wrld, 'Parent\PNAM\Flags') and 1 = 1) then begin
-        //parentwrld := GetElementEditValues(wrld, 'Parent\WNAM');
-        //AddMessage(parentwrld);
-        parentwrld := LinksTo(ElementByPath(wrld, 'Parent\WNAM'));
-        parentwrldname := EditorID(parentwrld);
-        parentworlds.add(parentwrldname);
-        wrldsusingparentlanddata.add(wrldname);
-      end;
-
-      wrldgrup := ChildGroup(wrld);
-
-      // traverse Blocks
-      for blockidx := 0 to ElementCount(wrldgrup) - 1 do begin
-
-        //test
-        //if wrldname <> 'WhiterunWorld' then break;
-        //end test
-
-        block := ElementByIndex(wrldgrup, blockidx);
-        if Signature(block) = 'CELL' then Continue;
-
-        // traverse SubBlocks
-        for subblockidx := 0 to ElementCount(block) - 1 do begin
-          subblock := ElementByIndex(block, subblockidx);
-
-          // traverse Cells
-          for cellidx := 0 to ElementCount(subblock) - 1 do begin
-            cell := ElementByIndex(subblock, cellidx);
-
-            x := GetElementNativeValues(cell, 'XCLC\X');
-            if x = '' then continue;
-            y := GetElementNativeValues(cell, 'XCLC\Y');
-            xxxx := ZeroPad(x);
-            yyyy := ZeroPad(y);
-            cellmodcheck := IntToStr(modidx) + ' of ' + IntToStr(FileCount) + ' has grass in ' + wrldname + ' ' + x + ' ' + y;
-            filenameneeded := wrldname + 'x' + xxxx + 'y'+ yyyy + '.gid';
-            therewasgrassinthiscellforthismod := '';
-
-            cellchild := FindChildGroup(ChildGroup(cell),9,cell);
-            for cellchildidx := 0 to ElementCount(cellchild) - 1 do begin
-              temprecord := ElementByIndex(cellchild, cellchildidx);
-
-              //traverse layers of landscape record
-              if Signature(temprecord) = 'LAND' then begin
-                layers := ElementByName(temprecord, 'Layers');
-                numberoflayers := ElementCount(layers);
-                if numberoflayers > 0 then begin
-                  for layeridx := 0 to numberoflayers - 1 do begin
-                    layerrecord := ElementByIndex(layers, layeridx);
-                    //traverse the texture element name to find the landscape textures used
-                    for theumpteenthidx := 0 to ElementCount(layerrecord) - 1 do begin
-                      ilosttrack := ElementByIndex(layerrecord, theumpteenthidx);
-                      thename := GetEditValue(ElementByName(ilosttrack, 'Texture'));
-                      if thename = 'NULL - Null Reference [00000000]' then continue;
-                      //AddMessage(thename);
-                      //string is 16 chars too much
-                      lengthofthename := Length(thename);
-                      newname := LeftStr(thename, lengthofthename - 16);
-                      //AddMessage(newname);
-                      doesithavegrass := gltexes.indexOf(newname);
-                      if doesithavegrass <> -1 then begin
-
-                        //AddMessage(filenameneeded);
-                        filesneeded.add(filenameneeded);
-                        consolecodes.add('cow ' + wrldname + ' ' + x + ' ' + y);
-                        worldsneeded.add(wrldname);
-                        therewasgrassinthiscellforthismod := cellmodcheck;
-                        //AddMessage(therewasgrassinthiscellforthismod)
-                      end;
-                      //
-                      //filesneededidx := filesneeded.indexOf(filenameneeded);
-                      //if (doesithavegrass = -1) and (filesneededidx <> -1) then
-                      //  filesneeded.Delete(filesneededidx)
-                    end;
-                    if (therewasgrassinthiscellforthismod = cellmodcheck) then break;
-                  end;
-                end;
-              end;
-              //if we found the temprecord with landscape and it had grass, then we can break the loop of temp records
-              if (therewasgrassinthiscellforthismod = cellmodcheck) then break;
-            end;
-            //if the cellidx for the modidx did not contain grass, but was in the list of cells that contain grass, remove it
-            //this doesn't work -- need to rethink my logic
-            (*if (therewasgrassinthiscellforthismod <> cellmodcheck) and (filesneeded.indexOf(filenameneeded) <> -1) then begin
-              filesneeded.Delete(filesneeded.indexOf(filenameneeded));
-              AddMessage('Mod id ' + IntToStr(modidx) + ' removed grass from ' + wrldname + ' ' + x + ' ' + y)
-            end;*)
-          end;
-        end;
-      end;
+    g := GroupBySignature(f, 'WRLD');
+    for j := 0 to Pred(ElementCount(g)) do begin
+      r := WinningOverride(ElementByIndex(g, j));
+      recordId := GetFileName(r) + #9 + ShortName(r);
+      idx := slWrld.IndexOf(recordId);
+      if idx > -1 then continue
+      slWrld.Add(recordId);
+      tlWrld.Add(r);
     end;
   end;
-  //some manual rules for now until I can verify these
-  (*if worldsneeded.indexOf('DLC2ApocryphaWorld') <> -1 then
-    worldsneeded.Delete(worldsneeded.indexOf('DLC2ApocryphaWorld'));
-  if worldsneeded.indexOf('DLC01Boneyard') <> -1 then
-    worldsneeded.Delete(worldsneeded.indexOf('DLC01Boneyard'));
-  if worldsneeded.indexOf('WindhelmPitWorldspace') <> -1 then
-    worldsneeded.Delete(worldsneeded.indexOf('WindhelmPitWorldspace'));*)
 
-  for parentworldsidx := 0 to parentworlds.Count - 1 do begin
-  if worldsneeded.indexOf(parentworlds[parentworldsidx]) <> -1 then
-    worldsneeded.add(wrldsusingparentlanddata[parentworldsidx]);
+  for i := 0 to Pred(tlLtex.Count) do begin
+    g := ObjectToElement(tlLtex[i]);
+    for j := 0 to Pred(ReferencedByCount(g)) do begin
+      r := ReferencedByIndex(g, j);
+      if Signature(r) <> 'LAND' then continue;
+      if not IsWinningOverride(r) then continue;
+      recordId := GetFileName(r) + #9 + ShortName(r);
+      idx := slLand.IndexOf(recordId);
+      if idx > -1 then continue;
+      slLand.Add(recordId);
+      tlLand.Add(r);
+    end;
   end;
+  slLtex.Free;
+  slLand.Free;
+  tlLtex.Free;
+  slWrld.Free;
+end;
 
-  gltexes.Free;
-  parentworlds.Free;
-  wrldsusingparentlanddata.Free;
+procedure Land;
+var
+  i: integer;
+  land, rCell, rWrld: IInterface;
+  x, y, xxxx, yyyy, wrldname, filenameneeded: string;
+begin
+  for i := 0 to Pred(tlLand.Count) do begin
+    land := ObjectToElement(tlLand[i]);
+    rCell := WinningOverride(LinksTo(ElementByIndex(land, 0)));
+    x := GetElementEditValues(rCell, 'XCLC\X');
+    y := GetElementEditValues(rCell, 'XCLC\Y');
+    xxxx := ZeroPad(x);
+    yyyy := ZeroPad(y);
+    rWrld := WinningOverride(LinksTo(ElementByIndex(rCell, 0)));
+    if GetElementEditValues(rWrld, 'DATA - Flags\No Grass') = '1' then continue;
+    wrldname := EditorID(rWrld);
+    filenameneeded := wrldname + 'x' + xxxx + 'y'+ yyyy + '.gid';
+    filesneeded.add(filenameneeded);
+    consolecodes.add('cow ' + wrldname + ' ' + x + ' ' + y);
+    worldsneeded.add(wrldname);
+  end;
+end;
+
+procedure Worlds;
+var
+  i: integer;
+  wrld, parentwrld: IInterface;
+begin
+  for i := 0 to Pred(tlWrld.Count) do begin
+    wrld := ObjectToElement(tlWrld[i]);
+    if GetElementEditValues(wrld, 'Parent\PNAM\Flags\Use Land Data') <> '1' then continue;
+    parentwrld := LinksTo(ElementByPath(wrld, 'Parent\WNAM'));
+    if worldsneeded.IndexOf(EditorID(parentwrld)) > -1 then worldsneeded.Add(EditorID(wrld));
+  end;
 end;
 
 function BoolToStr(b: boolean): string;
@@ -488,6 +454,16 @@ begin
   finally
     frm.Free;
   end;
+end;
+
+procedure ListStringsInStringList(sl: TStringList);
+{
+    Given a TStringList, add a message for all items in the list.
+}
+var
+    i: integer;
+begin
+    for i := 0 to Pred(sl.Count) do AddMessage(sl[i]);
 end;
 
 end.
