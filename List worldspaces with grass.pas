@@ -6,7 +6,9 @@ unit UserScript;
 var
   filesneeded, consolecodes, worldsneeded: TStringList;
   fname, cname, wname, wrlds: string;
-  generateFiles: Boolean;
+  bGenerateFiles: Boolean;
+  chkGenerateFiles: TCheckBox;
+  edFname, edCname, edWname: TEdit;
 
 function Initialize: Integer;
 {
@@ -14,8 +16,9 @@ function Initialize: Integer;
 }
 var
   skipTraverse: Boolean;
+  wrldts: TStringList;
 begin
-  generateFiles := 1;
+  bGenerateFiles := 0;
   skipTraverse := 0;
   fname := ScriptsPath() + 'grasscache.txt';
   cname := ScriptsPath() + 'grasscacheconsole.txt';
@@ -30,6 +33,28 @@ begin
   end;
 
   if not skipTraverse then TraverseWorldspaceCells;
+
+  wrlds := worldsneeded.DelimitedText;
+  worldsneeded.Free;
+  wrldts := TStringList.Create;
+  wrldts.add(wrlds);
+
+  AddMessage(wrldts.Text);
+  MessageForm(wrldts.Text);
+
+  if bGenerateFiles then begin
+    AddMessage('Saving grasscacheworlds.txt to ' + wname);
+    wrldts.SaveToFile(wname);
+
+    AddMessage('Saving grasscache.txt to ' + fname);
+    filesneeded.SaveToFile(fname);
+    filesneeded.Free;
+
+    AddMessage('Saving grasscacheconsole.txt to ' + cname);
+    consolecodes.SaveToFile(cname);
+    consolecodes.Free;
+  end;
+  wrldts.Free;
 
   Result := 0;
 end;
@@ -51,31 +76,7 @@ begin
 end;
 
 function Finalize: integer;
-var
-  wrldts: TStringList;
 begin
-  wrlds := worldsneeded.DelimitedText;
-  worldsneeded.Free;
-  wrldts := TStringList.Create;
-  wrldts.add(wrlds);
-
-  AddMessage(wrldts.Text);
-  MessageForm(wrldts.Text);
-
-  if generateFiles then begin
-    AddMessage('Saving grasscacheworlds.txt to ' + wname);
-    wrldts.SaveToFile(wname);
-
-    AddMessage('Saving grasscache.txt to ' + fname);
-    filesneeded.SaveToFile(fname);
-    filesneeded.Free;
-
-    AddMessage('Saving grasscacheconsole.txt to ' + cname);
-    consolecodes.SaveToFile(cname);
-    consolecodes.Free;
-  end;
-  wrldts.Free;
-
   Result := 0;
 end;
 
@@ -376,12 +377,18 @@ begin
   Result.Caption := aCaption;
 end;
 
+procedure checkboxHandler(Sender: TObject);
+begin
+  edFname.Enabled := chkGenerateFiles.Checked;
+  edCname.Enabled := chkGenerateFiles.Checked;
+  edWname.Enabled := chkGenerateFiles.Checked;
+end;
+
 function OptionForm: Boolean;
 var
   frm: TForm;
   btnOk, btnCancel: TButton;
   lbl1, lbl2, lbl3: TLabel;
-  edFname, edCname, edWname: TEdit;
   gbOptions: TGroupBox;
   pnl: TPanel;
 begin
@@ -389,7 +396,7 @@ begin
   try
     frm.Caption := 'List Cells/Console Codes/Worlds for which grass is in the LAND record';
     frm.Width := 600;
-    frm.Height := 250;
+    frm.Height := 300;
     frm.Position := poScreenCenter;
     frm.BorderStyle := bsDialog;
 
@@ -398,14 +405,23 @@ begin
     gbOptions.Left := 10;
     gbOptions.Top := 16;
     gbOptions.Width := frm.Width - 30;
-    gbOptions.Caption := 'Output Paths';
-    gbOptions.Height := 130;
+    gbOptions.Caption := 'Debug files';
+    gbOptions.Height := 160;
+
+    chkGenerateFiles := TCheckBox.Create(gbOptions);
+    chkGenerateFiles.Parent := gbOptions;
+    chkGenerateFiles.Name := 'chkGenerateFiles';
+    chkGenerateFiles.Left := 104;
+    chkGenerateFiles.Top := 30;
+    chkGenerateFiles.Width := 200;
+    chkGenerateFiles.Caption := 'Create debug files';
+    chkGenerateFiles.OnClick := checkboxHandler;
 
     edFname := TLabeledEdit.Create(gbOptions);
     edFname.Parent := gbOptions;
     edFname.Name := 'edFname';
     edFname.Left := 104;
-    edFname.Top := 30;
+    edFname.Top := chkGenerateFiles.Top + 30;
     edFname.Width := 400;
     edFname.Text := fname;
     CreateLabel(gbOptions, 16, edFname.Top + 4, 'List:');
@@ -451,6 +467,10 @@ begin
     pnl.Height := 2;
 
     frm.ActiveControl := btnOk;
+    chkGenerateFiles.Checked := bGenerateFiles;
+    edFname.Enabled := chkGenerateFiles.Checked;
+    edCname.Enabled := chkGenerateFiles.Checked;
+    edWname.Enabled := chkGenerateFiles.Checked;
 
     if frm.ShowModal <> mrOk then begin
       Result := False;
@@ -458,7 +478,7 @@ begin
     end
     else Result := True;
 
-
+    bGenerateFiles := chkGenerateFiles.Checked;
     if (Trim(edFname.Text) <> '') then
       fname := Trim(edFname.Text);
     if (Trim(edCname.Text) <> '') then
